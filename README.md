@@ -1,5 +1,7 @@
 # liu-master-planner
 
+**Still work in progress!**
+
 Helps students choose courses for their master at Linköping University.
 
 ## Purpose
