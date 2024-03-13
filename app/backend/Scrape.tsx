@@ -60,6 +60,13 @@ export default async function scrapeProgram(program: string) {
     const browser = await puppeteer.launch();
     const page = await browser.newPage();
     await page.goto(STUDIE_INFO_URL + ENABLED_PROGRAMS[program]);
+    console.log("----------------------------------------")
+    const specs = await page.evaluate(() => {
+        const elem = document.querySelector(".specialization");
+        const test = elem?.querySelector(".details-row")?.innerHTML;
+        return test
+    })
+    // console.log(specs);
     const options = (await page.$eval('#related_entity_navigation', e => e.innerHTML)).split("</option>");
     let yearCodes: {[key: string]: string} = getYearCodes(options, program);
 
@@ -72,6 +79,32 @@ export default async function scrapeProgram(program: string) {
     }
     ));
 
+    const semesters2 = await page.evaluate(() => {
+        const semester_list = document.querySelectorAll(".specialization");
+        return Array.from(semester_list).map((semester) => {
+            const period_list = semester.querySelectorAll(".period");
+            return Array.from(period_list).map((period) => {
+                const course_data_field = period.querySelector(".main-row")
+                const course_info_fields = period.querySelectorAll(".main-row > td");
+    
+                const data_field_of_study = course_data_field?.getAttribute("data-field-of-study")?.split("|");
+                const data_vof = course_data_field?.getAttribute("data-vof");
+                const data_course_name = period.querySelector(".main-row > td > a")?.innerHTML;
+                const data_course_code = course_info_fields[0]?.innerHTML;
+                const data_hp = course_info_fields[2]?.innerHTML;
+                const data_course_level = course_info_fields[3]?.innerHTML;
+                return {
+                    data_course_code,
+                    data_field_of_study,
+                    data_vof,
+                    data_course_name,
+                    data_hp,
+                    data_course_level
+                }
+            });
+        })
+    })
+    // console.log(semesters2)
     const semesters = (await page.$$eval('.specialization', specs => {
         return specs.map(spec => spec.innerHTML);
     }
@@ -107,7 +140,7 @@ export default async function scrapeProgram(program: string) {
             course_info.push(getCourseInfo(course, "Period " + period_counter, master_semesters_number[0]));
         });
         //const courseinfo = getCourseInfo(course_string, "Period " + period_counter, master_semesters_number[0]);
-        console.log(course_info);
+        // console.log(course_info);
         period_counter++;
     }
 

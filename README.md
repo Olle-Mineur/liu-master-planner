@@ -14,8 +14,10 @@ This project will first be optimized for *D-sektionen*, but will expand to other
 ## Tech-stack
 
 - Next.js with App router
+  - [Million.js](https://million.dev/) - Package for optimizing rendering
 - TailwindCSS
 - Cloudflare Pages
+- Firebase - Used for storing data about master profiles
 
 ## How to get started
 
