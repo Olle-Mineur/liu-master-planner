@@ -1,7 +1,7 @@
 import { STUDIE_INFO_URL, ENABLED_PROGRAMS } from "../backend/Scrape";
-import Bar from "../components/ProgramBar/Bar";
-import List from '../components/ProgramBar/List';
-import Listitem from '../components/ProgramBar/Listitem';
+import Bar from "../../components/ProgramBar/Bar";
+import List from '../../components/ProgramBar/List';
+import Listitem from '../../components/ProgramBar/Listitem';
 
 export default function Home() {
     return (
