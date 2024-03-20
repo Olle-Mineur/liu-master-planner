@@ -1,3 +1,5 @@
+'use server';
+
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
@@ -19,16 +21,15 @@ const firebaseConfig = {
     measurementId: env.measurementId
 };
 
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
-const db = getFirestore(app);
+const appDb = initializeApp(firebaseConfig);
+const analytics = getAnalytics(appDb);
+const db = getFirestore(appDb);
 
 /**
  * Retrieves all programs from the Firestore database.
- * @param db - The Firestore instance.
  * @returns A promise that resolves to an array of program objects.
  */
-async function getPrograms(db: Firestore) {
+export async function getPrograms() {
     try {
         const programsCol = collection(db, 'programs');
         const programsSnapshot = await getDocs(programsCol);
@@ -42,12 +43,11 @@ async function getPrograms(db: Firestore) {
 
 /**
  * Retrieves a specific program from the Firestore database.
- * @param db - The Firestore instance.
  * @param program_name - The name of the program to retrieve.
  * @param program_start - The start date of the program.
  * @returns A promise that resolves to the program object.
  */
-async function getProgram(db: Firestore, program_name: string, program_start: string) {
+export async function getProgram(program_name: string, program_start: string) {
     try {
         const programCol = collection(db, 'programs');
         const programQuery = query(programCol, where('program', '==', program_name), where('program_start', '==', program_start));
@@ -63,13 +63,12 @@ async function getProgram(db: Firestore, program_name: string, program_start: st
 /**
  * Updates a program in the Firestore database.
  * If the program does not exist, it will be added.
- * @param db - The Firestore instance.
  * @param program_name - The name of the program.
  * @param program_short - The short name of the program.
  * @param program_start - The start date of the program.
  * @param profiles - An array of profile references associated with the program.
  */
-async function updateProgram(db: Firestore, program_name: string, program_short: string, program_start: string, profiles: Array<DocumentReference>) {
+export async function updateProgram(program_name: string, program_short: string, program_start: string, profiles: Array<DocumentReference>) {
     try {
         const programCol = collection(db, 'programs');
         const programQuery = query(
@@ -105,23 +104,40 @@ async function updateProgram(db: Firestore, program_name: string, program_short:
 }
 
 /**
+ * Retrieves all program years associated with a specific program from the Firestore database.
+ * @param program_name - The name of the program to retrieve program years for.
+ * @returns A promise that resolves to an array of program years.
+ */
+export async function getProgramYears(program_name: string) {
+    try {
+        const programCol = collection(db, 'programs');
+        const programQuery = query(programCol, where('program_name', '==', program_name));
+        const programSnapshot = await getDocs(programQuery);
+        const programData = programSnapshot.docs.map(doc => doc.data()['program_start']);
+        return programData;
+    } catch (error) {
+        console.error("Error retrieving program: " + program_name, error);
+        throw error;
+    }
+}
+
+/**
  * Retrieves all profiles from the Firestore database.
  * @param db - The Firestore instance.
  * @returns A promise that resolves to an array of profile objects.
  */
 async function getProfiles(db: Firestore) {
-    async function getProfiles(db: Firestore) {
-        try {
-            const profilesCol = collection(db, 'profiles');
-            const profilesSnapshot = await getDocs(profilesCol);
-            const profileList = profilesSnapshot.docs.map(doc => doc.data());
-            return profileList;
-        } catch (error) {
-            console.error("Error retrieving profiles:", error);
-            throw error;
-        }
+    try {
+        const profilesCol = collection(db, 'profiles');
+        const profilesSnapshot = await getDocs(profilesCol);
+        const profileList = profilesSnapshot.docs.map(doc => doc.data());
+        return profileList;
+    } catch (error) {
+        console.error("Error retrieving profiles:", error);
+        throw error;
     }
 }
+
 
 /**
  * Retrieves all profiles associated with a specific program from the Firestore database.
@@ -202,7 +218,12 @@ async function updateProfile(db: Firestore, program_name: string, program_start:
                 profile_start: profile_start,
                 courses: courses
             };
-            await addDoc(profileCol, profileData);
+            const profileDocRef = await addDoc(profileCol, profileData);
+
+            // Update the program to include the new profile reference
+            const programData = await getProgram(program_name, program_start);
+            const profileRef = programData[0]['profiles'];
+            profileRef.push(profileDocRef);
         } else {
             const profileDoc = profileSnapshot.docs[0];
             const profileId = profileDoc.id;

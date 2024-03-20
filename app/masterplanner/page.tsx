@@ -1,20 +1,30 @@
-import { STUDIE_INFO_URL, ENABLED_PROGRAMS } from "../backend/Scrape";
+import { ENABLED_PROGRAMS } from "../backend/Scrape";
 import Bar from "../../components/ProgramBar/Bar";
 import List from '../../components/ProgramBar/List';
 import Listitem from '../../components/ProgramBar/Listitem';
+
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Separator } from "@/components/ui/separator"
+import { Button } from "@/components/ui/button"
+
 
 export default function Home() {
     return (
         <main className="flex flex-col min-h-screen justify-between p-24">
             <div className="flex flex-row justify-between">
-                <Bar>
-                    <List>
-                        {Object.keys(ENABLED_PROGRAMS).map((program, key) => {
-                            return <Listitem key={key}>{program}</Listitem>
-                            })
-                        }
-                    </List>
-                </Bar>
+                <ScrollArea className="h-72 w-48 rounded-md border">
+                    <div className="p-4">
+                        <h4 className="mb-4 text-sm font-medium leading-none">Program</h4>
+                        {Object.keys(ENABLED_PROGRAMS).map((program, key) => (
+                            <>
+                                <Button key={key} className="text-xs">
+                                    {program}
+                                </Button>
+                                <Separator className="my-2" />
+                            </>
+                        ))}
+                    </div>
+                </ScrollArea>
                 <Bar>
                     <List>
                         <Listitem>HT2024</Listitem>
