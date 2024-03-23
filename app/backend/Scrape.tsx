@@ -1,13 +1,8 @@
 import { Console } from "console";
 import puppeteer from "puppeteer";
+import { updateProfile, updateProgram, updateCourse } from "./Database";
+import { ENABLED_PROGRAMS, STUDIE_INFO_URL } from "@/app/Constants";
 
-export const STUDIE_INFO_URL = "https://studieinfo.liu.se/program/";
-
-export const ENABLED_PROGRAMS: {[key: string]: string} = {
-    "Datateknik": "6CDDD",
-    "Mjukvaruteknik": "6CMJU",
-    "Informationsteknologi": "6CITE",
-}
 
 
 function getYear(option: string, program: string){
@@ -57,95 +52,123 @@ function getCourseInfo(semester: string, period: string, semester_counter: strin
 
 
 export default async function scrapeProgram(program: string) {
-    const browser = await puppeteer.launch();
-    const page = await browser.newPage();
-    await page.goto(STUDIE_INFO_URL + ENABLED_PROGRAMS[program]);
+    const programName = program.charAt(0).toUpperCase() + program.slice(1).toLowerCase();
+    if (!ENABLED_PROGRAMS[programName]) {
+        console.error("Error occurred while scraping program:", programName, "is not enabled");
+        return;
+    }
+    console.log("Scraping program:", programName);
+
+    // Sleep function to avoid getting blocked by the website
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+    const browserYear = await puppeteer.launch({headless: true});
+    const pageYear = await browserYear.newPage();
+    await pageYear.goto(STUDIE_INFO_URL + ENABLED_PROGRAMS[programName]);
+
     console.log("----------------------------------------")
-    const specs = await page.evaluate(() => {
-        const elem = document.querySelector(".specialization");
-        const test = elem?.querySelector(".details-row")?.innerHTML;
-        return test
-    })
-    // console.log(specs);
-    const options = (await page.$eval('#related_entity_navigation', e => e.innerHTML)).split("</option>");
-    let yearCodes: {[key: string]: string} = getYearCodes(options, program);
+    const options = (await pageYear.$eval('#related_entity_navigation', e => e.innerHTML)).split("</option>");
+    let yearCodes: {[key: string]: string} = getYearCodes(options, programName);
 
+    browserYear.close();
 
-    // https://studieinfo.liu.se/program/6CDDD/5723#curriculum
-    await page.goto(STUDIE_INFO_URL + ENABLED_PROGRAMS[program] + "/" + yearCodes["HT2024"] + "#curriculum");
-
-    const semesters_number = (await page.$$eval('.accordion__head > h3', semesters => {
-        return semesters.map(semester => semester.innerHTML);
-    }
-    ));
-
-    const semesters2 = await page.evaluate(() => {
-        const semester_list = document.querySelectorAll(".specialization");
-        return Array.from(semester_list).map((semester) => {
-            const period_list = semester.querySelectorAll(".period");
-            return Array.from(period_list).map((period) => {
-                const course_data_field = period.querySelector(".main-row")
-                const course_info_fields = period.querySelectorAll(".main-row > td");
-    
-                const data_field_of_study = course_data_field?.getAttribute("data-field-of-study")?.split("|");
-                const data_vof = course_data_field?.getAttribute("data-vof");
-                const data_course_name = period.querySelector(".main-row > td > a")?.innerHTML;
-                const data_course_code = course_info_fields[0]?.innerHTML;
-                const data_hp = course_info_fields[2]?.innerHTML;
-                const data_course_level = course_info_fields[3]?.innerHTML;
-                return {
-                    data_course_code,
-                    data_field_of_study,
-                    data_vof,
-                    data_course_name,
-                    data_hp,
-                    data_course_level
-                }
+    console.log(yearCodes);
+    Object.keys(yearCodes).forEach(async (year) => {
+        await sleep(3000);
+        let browser: puppeteer.Browser | undefined;
+        let page: puppeteer.Page | undefined;
+        try {
+            browser = await puppeteer.launch({
+                headless: true,
+                args: [
+                    "--no-sandbox",
+                    "--disable-setuid-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--disable-accelerated-2d-canvas",
+                    "--no-first-run",
+                    "--no-zygote",
+                    "--disable-gpu",
+                    ],
             });
-        })
-    })
-    // console.log(semesters2)
-    const semesters = (await page.$$eval('.specialization', specs => {
-        return specs.map(spec => spec.innerHTML);
-    }
-    ));
+            page = await browser.newPage();
+        } catch (error) {
+            browser.close();
+            console.error("Error occurred while launching browser:", error);
+        }
 
-    let master_semesters: Array<string> = [];
-    let master_semesters_number: Array<string> = [];
+        try {
+            await page.goto(STUDIE_INFO_URL + ENABLED_PROGRAMS[programName] + "/" + yearCodes[year] + "#curriculum");
+            await page.waitForSelector(".main-container");
+        } catch (error) {
+            browser.close();
+            console.error("Error occurred while waiting for main container:", error);
+        }
 
-    if (semesters.length > 0) {
-        master_semesters_number = semesters_number.slice(6);
-        master_semesters_number = master_semesters_number.slice(0, master_semesters_number.length-1);
+        try {
+            const semesters2 = await page.evaluate(() => {
+                const semester_list = document.querySelectorAll(".semester");
+                return Array.from(semester_list).map((semester) => {
+                    const spec_list = semester.querySelectorAll(".specialization");
+                    return Array.from(spec_list).map((spec) => {
+                        const period_list = spec.querySelectorAll(".period");
+                        return Array.from(period_list).map((period) => {
+                            const course_list = period.querySelectorAll(".main-row");
+                            return Array.from(course_list).map((course) => {
+                                const spec_name = (spec?.querySelectorAll(".table-responsive > table > caption > span")[0]?.innerHTML) || "Ingen inriktning";
+                                const semester_number = semester?.querySelector(".accordion__head > h3")?.innerHTML || "Ingen termin";
+                                const period_number = period.querySelector("tr > th")?.innerHTML || "Ingen period";
 
-        master_semesters = semesters.slice(6);
-        master_semesters = master_semesters.slice(0, master_semesters.length-1);
-    }
+                                const course_info_fields = course.querySelectorAll("td");
 
-    let doc = master_semesters[master_semesters.length-1];
-    let course_list = await getCourseList(doc);
+                                const data_field_of_study = course?.getAttribute("data-field-of-study")?.split("|") || ["Hittade inget ämne"];
+                                const data_vof = course?.getAttribute("data-vof") || "Hittade inget vof";
+                                const data_course_name = course.querySelector("td > a")?.innerHTML || "Hittade inget kursnamn";
+                                const data_course_code = course_info_fields[0]?.innerHTML || "Hittade ingen kurskod";
+                                const data_hp = course_info_fields[2]?.innerHTML || "Hittade ingen HP";
+                                const data_course_level = course_info_fields[3]?.innerHTML || "Hittade ingen kursnivå";
+                                const data_block = course_info_fields[5]?.innerHTML || "Hittade inget block";
 
-    let period_counter = 1;
+                                //updateCourse(
+                                //    programName,
+                                //    year,
+                                //    spec_name,
+                                //    semester_number,
+                                //    period_number,
+                                //    data_course_code,
+                                //    data_field_of_study,
+                                //    data_vof,
+                                //    data_block,
+                                //    data_course_name,
+                                //    data_hp,
+                                //    data_course_level);
+                                return {
+                                    programName,
+                                    year,
+                                    spec_name,
+                                    semester_number,
+                                    period_number,
+                                    data_course_code,
+                                    data_field_of_study,
+                                    data_vof,
+                                    data_course_name,
+                                    data_hp,
+                                    data_course_level
+                                }
+                            });
+                        });
+                    })
+                });
+            });
+            console.log(semesters2[semesters2.length-3][1]);
+        } catch (error) {
+            browser.close();
+            console.error("Error occurred while scraping course information:", error);
+        }
 
-    while (period_counter < 3) {
-        // console.log(course_list);
-        //console.log("Period " + period_counter + ": " + course_list["Period " + period_counter])
-        const course_string =  course_list["Period " + period_counter];
-        // console.log(course_string);
-        if (course_string === undefined || course_string.length < 1) break;
-        // TODO: Make so master_semesters_number is the correct semester
+        browser?.close();
+    });
 
-        // TODO: Maybe not the best way to store the course info. course_info is an array of dictionaries, where each dictionary is a course and each element in the array are one period.
-        let course_info: any[] = [];
-        course_string.forEach(course => {
-            course_info.push(getCourseInfo(course, "Period " + period_counter, master_semesters_number[0]));
-        });
-        //const courseinfo = getCourseInfo(course_string, "Period " + period_counter, master_semesters_number[0]);
-        // console.log(course_info);
-        period_counter++;
-    }
-
-    browser.close();
-    return <p>hej</p>;
+    return <p>Hej</p>;
 }
 
 // Returns a dictionary with the courses of a semester, where the key is the period and the value is the course code.

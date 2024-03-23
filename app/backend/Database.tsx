@@ -5,6 +5,7 @@ import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 import { Firestore, getFirestore, collection, getDocs, query, where, addDoc, setDoc, DocumentReference } from 'firebase/firestore/lite';
 import { env } from "process";
+import { get } from "http";
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
 
@@ -22,7 +23,7 @@ const firebaseConfig = {
 };
 
 const appDb = initializeApp(firebaseConfig);
-const analytics = getAnalytics(appDb);
+//const analytics = getAnalytics(appDb);
 const db = getFirestore(appDb);
 
 /**
@@ -123,10 +124,9 @@ export async function getProgramYears(program_name: string) {
 
 /**
  * Retrieves all profiles from the Firestore database.
- * @param db - The Firestore instance.
  * @returns A promise that resolves to an array of profile objects.
  */
-async function getProfiles(db: Firestore) {
+export async function getProfiles() {
     try {
         const profilesCol = collection(db, 'profiles');
         const profilesSnapshot = await getDocs(profilesCol);
@@ -141,12 +141,11 @@ async function getProfiles(db: Firestore) {
 
 /**
  * Retrieves all profiles associated with a specific program from the Firestore database.
- * @param db - The Firestore instance.
  * @param program_name - The name of the program to retrieve profiles for.
  * @param program_start - The start date of the program.
  * @returns A promise that resolves to an array of profile objects.
  */
-async function getProfilesByProgram(db: Firestore, program_name: string, program_start: string) {
+export async function getProfilesByProgram(program_name: string, program_start: string) {
     try {
         const profilesCol = collection(db, 'profiles');
         const profilesQuery = query(
@@ -165,13 +164,12 @@ async function getProfilesByProgram(db: Firestore, program_name: string, program
 
 /**
  * Retrieves a specific profile from the Firestore database.
- * @param db - The Firestore instance.
  * @param program_name - The name of the program to retrieve.
  * @param program_start - The start date of the program.
  * @param profile_name - The name of the profile to retrieve.
  * @returns A promise that resolves to the profile object.
  */
-async function getProfile(db: Firestore, program_name: string, program_start: string, profile_name: string) {
+export async function getProfile(program_name: string, program_start: string, profile_name: string) {
     try {
         const profileCol = collection(db, 'profiles');
         const profileQuery = query(
@@ -192,14 +190,12 @@ async function getProfile(db: Firestore, program_name: string, program_start: st
 /**
  * Updates a profile in the Firestore database.
  * If the profile does not exist, it will be added.
- * @param db - The Firestore instance.
  * @param program_name - The name of the program.
  * @param program_start - The start date of the program.
  * @param profile_name - The name of the profile.
- * @param profile_start - The start date of the profile.
  * @param courses - An array of course codes associated with the profile.
  */
-async function updateProfile(db: Firestore, program_name: string, program_start: string, profile_name: string, profile_start: string, courses: Array<string>) {
+export async function updateProfile(program_name: string, program_start: string, profile_name: string, courses: Array<string>) {
     try {
         const profileCol = collection(db, 'profiles');
         const profileQuery = query(
@@ -207,7 +203,6 @@ async function updateProfile(db: Firestore, program_name: string, program_start:
             where('profile_name', '==', profile_name),
             where('program_name', '==', program_name),
             where('program_start', '==', program_start),
-            where('profile_start', '==', profile_start)
         );
         const profileSnapshot = await getDocs(profileQuery);
         if (profileSnapshot.empty) {
@@ -215,7 +210,6 @@ async function updateProfile(db: Firestore, program_name: string, program_start:
                 program_name: program_name,
                 program_start: program_start,
                 profile: profile_name,
-                profile_start: profile_start,
                 courses: courses
             };
             const profileDocRef = await addDoc(profileCol, profileData);
@@ -231,7 +225,6 @@ async function updateProfile(db: Firestore, program_name: string, program_start:
                 program_name: program_name,
                 program_start: program_start,
                 profile_name: profile_name,
-                profile_start: profile_start,
                 courses: courses
             };
             await setDoc(profileDoc.ref, profileData);
@@ -242,3 +235,64 @@ async function updateProfile(db: Firestore, program_name: string, program_start:
     }
 }
 
+export async function updateCourse(program_name: string, program_start: string, profile_name: string, course_semester: string, course_period: string, course_code: string, course_field: string[], course_vof: string, course_block: string, course_name: string, course_points: string, course_level: string) {
+    try {
+        const courseCol = collection(db, 'courses');
+        const courseQuery = query(
+            courseCol,
+            where('course_code', '==', course_code),
+            where('program_name', '==', program_name),
+            where('program_start', '==', program_start),
+            where('profile_name', '==', profile_name),
+            where('course_period', '==', course_period),
+            where('course_semester', '==', course_semester)
+        );
+        const courseSnapshot = await getDocs(courseQuery);
+        if (courseSnapshot.empty) {
+            const courseData = {
+                program_name: program_name,
+                program_start: program_start,
+                profile_name: profile_name,
+                course_semester: course_semester,
+                course_period: course_period,
+                course_code: course_code,
+                course_name: course_name,
+                course_points: course_points,
+                course_block: course_block,
+                course_field: course_field,
+                course_vof: course_vof,
+                course_level: course_level
+            };
+            await addDoc(courseCol, courseData);
+            await getProfile(program_name, program_start, profile_name).then(
+                (data) => {
+                    let courses = data[0]['courses'];
+                    if (course_code in courses) return;
+                    courses.push(course_code);
+                    updateProfile(program_name, program_start, profile_name, courses);
+                }
+            );
+        } else {
+            const courseDoc = courseSnapshot.docs[0];
+            const courseId = courseDoc.id;
+            const courseData = {
+                program_name: program_name,
+                program_start: program_start,
+                profile_name: profile_name,
+                course_semester: course_semester,
+                course_period: course_period,
+                course_code: course_code,
+                course_name: course_name,
+                course_points: course_points,
+                course_block: course_block,
+                course_field: course_field,
+                course_vof: course_vof,
+                course_level: course_level
+            };
+            await setDoc(courseDoc.ref, courseData);
+        }
+    } catch (error) {
+        console.error("Error updating course: " + course_code + " for " + program_name, error);
+        throw error;
+    }
+}
