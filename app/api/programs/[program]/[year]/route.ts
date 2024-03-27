@@ -35,8 +35,7 @@ export async function GET(request: NextRequest, context: any) {
     const programCourses = await scrapeProgramByYear(programName, year);
 
     return NextResponse.json({
-        message: "Available program start years for: " + params,
-        data: programCourses,
+        programCourses,
     });
 
 }

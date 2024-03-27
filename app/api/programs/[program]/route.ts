@@ -1,13 +1,13 @@
 'use server';
 
-import { getProgramYears } from '@/app/backend/Database';
 import { ENABLED_PROGRAMS } from '@/app/Constants';
+import { scrapeProgramYears } from '@/app/backend/Scrape';
 
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest, context: any) {
-    const { params } = context.program;
-    const programName = params.charAt(0).toUpperCase() + params.slice(1).toLowerCase();
+    const params = context.params;
+    const programName = params["program"].charAt(0).toUpperCase() + params["program"].slice(1).toLowerCase();
 
     if (!ENABLED_PROGRAMS[programName]) {
         return NextResponse.json({
@@ -15,11 +15,11 @@ export async function GET(request: NextRequest, context: any) {
         });
     }
 
-    const programYears = await getProgramYears(programName);
+    const years = await scrapeProgramYears(programName) || {};
+    const programYearsKeys = Object.keys(years) || [];
 
     return NextResponse.json({
-        message: "Available program start years for: " + params,
-        data: programYears,
+        years
     });
 
 }
