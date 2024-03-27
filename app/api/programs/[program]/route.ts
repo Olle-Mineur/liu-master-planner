@@ -6,7 +6,7 @@ import { ENABLED_PROGRAMS } from '@/app/Constants';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest, context: any) {
-    const { params } = context.id;
+    const { params } = context.program;
     const programName = params.charAt(0).toUpperCase() + params.slice(1).toLowerCase();
 
     if (!ENABLED_PROGRAMS[programName]) {

@@ -51,7 +51,7 @@ function getCourseInfo(semester: string, period: string, semester_counter: strin
 }
 
 
-export default async function scrapeProgram(program: string) {
+export async function scrapeProgramYears(program: string) {
     const programName = program.charAt(0).toUpperCase() + program.slice(1).toLowerCase();
     if (!ENABLED_PROGRAMS[programName]) {
         console.error("Error occurred while scraping program:", programName, "is not enabled");
@@ -68,11 +68,28 @@ export default async function scrapeProgram(program: string) {
 
     console.log("----------------------------------------")
     const options = (await pageYear.$eval('#related_entity_navigation', e => e.innerHTML)).split("</option>");
-    let yearCodes: {[key: string]: string} = getYearCodes(options, programName);
+    let yearCodes: {[key: string]: string} = getYearCodes(options, programName) || {};
 
     browserYear.close();
 
-    console.log(yearCodes);
+    return yearCodes;
+}
+
+export default async function scrapeProgram(program: string) {
+    let semesters: any;
+
+    const programName = program.charAt(0).toUpperCase() + program.slice(1).toLowerCase();
+    if (!ENABLED_PROGRAMS[programName]) {
+        console.error("Error occurred while scraping program:", programName, "is not enabled");
+        return;
+    }
+    console.log("Scraping program:", programName);
+
+    // Sleep function to avoid getting blocked by the website
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+    const yearCodes: {[key: string]: string} = await scrapeProgramYears(programName) || {};
+
     Object.keys(yearCodes).forEach(async (year) => {
         await sleep(3000);
         let browser: puppeteer.Browser | undefined;
@@ -126,7 +143,7 @@ export default async function scrapeProgram(program: string) {
                                 const data_course_code = course_info_fields[0]?.innerHTML || "Hittade ingen kurskod";
                                 const data_hp = course_info_fields[2]?.innerHTML || "Hittade ingen HP";
                                 const data_course_level = course_info_fields[3]?.innerHTML || "Hittade ingen kursnivå";
-                                const data_block = course_info_fields[5]?.innerHTML || "Hittade inget block";
+                                const data_block = course_info_fields[4]?.innerHTML.replace(/[^0-9]/g, "") || "Hittade inget block";
 
                                 //updateCourse(
                                 //    programName,
@@ -142,14 +159,15 @@ export default async function scrapeProgram(program: string) {
                                 //    data_hp,
                                 //    data_course_level);
                                 return {
-                                    programName,
-                                    year,
+                                //    programName,
+                                //    year,
                                     spec_name,
                                     semester_number,
                                     period_number,
                                     data_course_code,
                                     data_field_of_study,
                                     data_vof,
+                                    data_block,
                                     data_course_name,
                                     data_hp,
                                     data_course_level
@@ -159,6 +177,7 @@ export default async function scrapeProgram(program: string) {
                     })
                 });
             });
+            semesters = semesters2;
             console.log(semesters2[semesters2.length-3][1]);
         } catch (error) {
             browser.close();
@@ -168,7 +187,120 @@ export default async function scrapeProgram(program: string) {
         browser?.close();
     });
 
-    return <p>Hej</p>;
+    return semesters;
+}
+
+export async function scrapeProgramByYear(program: string, year: number) {
+    let semesters: any;
+
+    const programName = program.charAt(0).toUpperCase() + program.slice(1).toLowerCase();
+    if (!ENABLED_PROGRAMS[programName]) {
+        console.error("Error occurred while scraping program:", programName, "is not enabled");
+        return;
+    }
+    console.log("Scraping program:", programName);
+
+    // Sleep function to avoid getting blocked by the website
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+    await sleep(3000);
+    let browser: puppeteer.Browser | undefined;
+    let page: puppeteer.Page | undefined;
+    try {
+        browser = await puppeteer.launch({
+            headless: true,
+            args: [
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-accelerated-2d-canvas",
+                "--no-first-run",
+                "--no-zygote",
+                "--disable-gpu",
+                ],
+        });
+        page = await browser.newPage();
+    } catch (error) {
+        browser.close();
+        console.error("Error occurred while launching browser:", error);
+    }
+
+    try {
+        await page.goto(STUDIE_INFO_URL + ENABLED_PROGRAMS[programName] + "/" + "HT" + year + "#curriculum");
+        await page.waitForSelector(".main-container");
+    } catch (error) {
+        browser.close();
+        console.error("Error occurred while waiting for main container:", error);
+    }
+
+    try {
+        const semesters2 = await page.evaluate(() => {
+            const semester_list = document.querySelectorAll(".semester");
+            return Array.from(semester_list).map((semester) => {
+                const spec_list = semester.querySelectorAll(".specialization");
+                return Array.from(spec_list).map((spec) => {
+                    const period_list = spec.querySelectorAll(".period");
+                    return Array.from(period_list).map((period) => {
+                        const course_list = period.querySelectorAll(".main-row");
+                        return Array.from(course_list).map((course) => {
+                            const spec_name = (spec?.querySelectorAll(".table-responsive > table > caption > span")[0]?.innerHTML) || "Ingen inriktning";
+                            const semester_number = semester?.querySelector(".accordion__head > h3")?.innerHTML || "Ingen termin";
+                            const period_number = period.querySelector("tr > th")?.innerHTML || "Ingen period";
+
+                            const course_info_fields = course.querySelectorAll("td");
+
+                            const data_field_of_study = course?.getAttribute("data-field-of-study")?.split("|") || ["Hittade inget ämne"];
+                            const data_vof = course?.getAttribute("data-vof") || "Hittade inget vof";
+                            const data_course_name = course.querySelector("td > a")?.innerHTML || "Hittade inget kursnamn";
+                            const data_course_code = course_info_fields[0]?.innerHTML || "Hittade ingen kurskod";
+                            const data_hp = course_info_fields[2]?.innerHTML || "Hittade ingen HP";
+                            const data_course_level = course_info_fields[3]?.innerHTML || "Hittade ingen kursnivå";
+                            const data_block = course_info_fields[4]?.innerHTML.replace(/[^0-9]/g, "") || "Hittade inget block";
+
+                            console.log(data_block);
+
+                            //updateCourse(
+                            //    programName,
+                            //    year,
+                            //    spec_name,
+                            //    semester_number,
+                            //    period_number,
+                            //    data_course_code,
+                            //    data_field_of_study,
+                            //    data_vof,
+                            //    data_block,
+                            //    data_course_name,
+                            //    data_hp,
+                            //    data_course_level);
+                            return {
+                                //programName,
+                                //year,
+                                spec_name,
+                                semester_number,
+                                period_number,
+                                data_course_code,
+                                data_field_of_study,
+                                data_vof,
+                                data_block,
+                                data_course_name,
+                                data_hp,
+                                data_course_level
+                            }
+                        });
+                    });
+                })
+            });
+        });
+        semesters = semesters2;
+        console.log(semesters2[semesters2.length-3][1]);
+    } catch (error) {
+        browser.close();
+        console.error("Error occurred while scraping course information:", error);
+    }
+
+    browser?.close();
+
+    return semesters;
 }
 
 // Returns a dictionary with the courses of a semester, where the key is the period and the value is the course code.
