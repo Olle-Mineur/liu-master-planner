@@ -14,11 +14,11 @@ export async function GET(request: NextRequest, context: any) {
             message: "Program not enabled",
         });
     }
-
-    scrapeProgram(programName);
+    const result = await scrapeProgram(programName);
 
     return NextResponse.json({
         message: "Scraping program: " + programName,
+        result,
     });
 
 }

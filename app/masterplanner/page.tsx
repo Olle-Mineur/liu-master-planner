@@ -75,6 +75,8 @@ export default function Home() {
             });
     }, [selectedProgram, selectedYear]);
 
+    console.log(programYears);
+
     return (
         <main className="flex flex-col min-h-screen justify-between p-24">
             <div className="flex flex-row justify-between">
@@ -98,12 +100,12 @@ export default function Home() {
                             <div className="p-4">
                                 <h4 className="mb-4 text-sm font-medium leading-none">Startår</h4>
                                 {programYears?.map((year, key) => (
-                                    <>
-                                        <Button key={key} className="text-xs" onClick={handleClick.year(year)}>
+                                    <React.Fragment key={key}>
+                                        <Button className="text-xs" onClick={handleClick.year(year)}>
                                             {year}
                                         </Button>
                                         <Separator className="my-2" />
-                                    </>
+                                    </React.Fragment>
                                 ))}
                             </div>
                         }

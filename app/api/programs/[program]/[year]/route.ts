@@ -34,6 +34,8 @@ export async function GET(request: NextRequest, context: any) {
 
     const programCourses = await scrapeProgramByYear(programName, year);
 
+    console.log("Courses for program", programName, "in year", year, ":", programCourses);
+
     return NextResponse.json({
         programCourses,
     });

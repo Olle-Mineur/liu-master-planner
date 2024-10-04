@@ -18,6 +18,9 @@ export async function GET(request: NextRequest, context: any) {
     const years = await scrapeProgramYears(programName) || {};
     const programYearsKeys = Object.keys(years) || [];
 
+    //console.log("Years for program", programName, ":", programYearsKeys);
+    //console.log("Years for program", programName, ":", years);
+
     return NextResponse.json({
         years
     });
